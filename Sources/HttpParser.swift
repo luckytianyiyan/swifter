@@ -15,6 +15,8 @@ public class HttpParser {
     
     public init() { }
     
+    public var listeners: [String: (_ received: Int, _ total: Int, _ error: Bool) -> Void] = [:]
+    
     public func readHttpRequest(_ socket: Socket) throws -> HttpRequest {
         let statusLine = try socket.readLine()
         let statusLineTokens = statusLine.components(separatedBy: " ")
@@ -27,7 +29,7 @@ public class HttpParser {
         request.queryParams = extractQueryParams(request.path)
         request.headers = try readHeaders(socket)
         if let contentLength = request.headers["content-length"], let contentLengthValue = Int(contentLength) {
-            request.body = try readBody(socket, size: contentLengthValue)
+            request.body = try readBody(socket, size: contentLengthValue, progress: listeners[request.path])
         }
         return request
     }
@@ -75,9 +77,19 @@ public class HttpParser {
 //        }
     }
     
-    private func readBody(_ socket: Socket, size: Int) throws -> [UInt8] {
+    private func readBody(_ socket: Socket, size: Int, progress: ((_ received: Int, _ total: Int, _ error: Bool) -> Void)? = nil) throws -> [UInt8] {
         var body = [UInt8]()
-        for _ in 0..<size { body.append(try socket.read()) }
+        for i in 0..<size {
+            do {
+                body.append(try socket.read())
+                if i % 512 == 0 {
+                    progress?(i, size, false)
+                }
+            } catch {
+                progress?(i, size, true)
+                throw error
+            }
+        }
         return body
     }
     

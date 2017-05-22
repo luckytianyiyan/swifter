@@ -18,6 +18,7 @@ public class HttpServerIO {
 
     private var socket = Socket(socketFileDescriptor: -1)
     private var sockets = Set<Socket>()
+    public var requestListeners: [String: (_ received: Int, _ total: Int, _ error: Bool) -> Void] = [:]
 
     public enum HttpServerIOState: Int32 {
         case starting
@@ -116,6 +117,7 @@ public class HttpServerIO {
 
     private func handleConnection(_ socket: Socket) {
         let parser = HttpParser()
+        parser.listeners = requestListeners
         while self.operating, let request = try? parser.readHttpRequest(socket) {
             let request = request
             request.address = try? socket.peername()
